@@ -10,3 +10,4 @@ It is a Platform that prioritizes human healthcare, privacy and cyber security f
 - Access Controll
 - Smart Contract deployment
 - Viewing uploaded health record
+- compact GUI
