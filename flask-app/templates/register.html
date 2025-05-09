@@ -1,0 +1,55 @@
+{% extends "layout.html" %}
+{% block title %}Register - HealthChain{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header text-center bg-primary text-white">
+                <i class="bi bi-person-plus-fill me-2"></i>Register New Account
+            </div>
+            <div class="card-body p-4 p-lg-5">
+                <p class="text-center text-muted mb-4">Create your secure HealthChain account. A unique blockchain
+                    address and private key will be generated.</p>
+
+                <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                        <strong>Save your Private Key securely!</strong> You'll need it to log in. Losing it means
+                        permanent loss of access.
+                    </div>
+                </div>
+
+                <form action="{{ url_for('register') }}" method="post">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Full Name</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                            <input type="text" class="form-control" id="name" name="name" required
+                                placeholder="Enter your full name">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="role" class="form-label">Register as:</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                            <select class="form-select" id="role" name="role" required>
+                                <option value="0" {% if request.args.get('role')=='0' %}selected{% endif %}>Patient
+                                </option>
+                                <option value="1" {% if request.args.get('role')=='1' %}selected{% endif %}>Doctor
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-key-fill me-1"></i> Register &
+                        Generate Keys</button>
+                </form>
+                <div class="mt-4 text-center">
+                    <p class="text-muted small">Already have an account? <a href="{{ url_for('login') }}">Login
+                            here</a>.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

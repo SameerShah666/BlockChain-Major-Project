@@ -1,0 +1,6 @@
+Flask
+Web3>=6.0.0,<7.0.0 # Specify a known compatible range if needed
+python-dotenv
+requests
+py-solc-x>=1.0.0,<2.0.0
+# cryptography # Optional: Add if/when implementing encryption

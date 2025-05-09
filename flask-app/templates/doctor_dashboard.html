@@ -1,0 +1,267 @@
+{# flask-app/templates/doctor_dashboard.html #}
+{# Updated UI Version #}
+
+{% extends "layout.html" %}
+{% block title %}Doctor Dashboard - HealthChain{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h4 mb-0">Doctor Dashboard</h2>
+    {# Optional: Add quick action buttons here if needed #}
+</div>
+<p class="lead mb-2">Welcome back, Dr. {{ session.user_name }}!</p>
+<p class="user-address mb-4">Your Address: {{ session.user_address }}</p>
+
+{% if error_msg %}
+<div class="alert alert-danger d-flex align-items-center" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div>{{ error_msg }}</div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    {# Column 1: Patient List / Lookup #}
+    <div class="col-lg-4">
+        {# Accessible Patients List Card #}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex align-items-center">
+                <i class="bi bi-person-lines-fill me-2"></i> Patients Granting Access
+            </div>
+            {% if accessible_patients %}
+            <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;"> {# Scrollable list #}
+                {% for patient in accessible_patients %}
+                <button type="button" class="list-group-item list-group-item-action view-patient-records-btn"
+                    data-patient-address="{{ patient.address }}"
+                    data-patient-name="{{ patient.name if patient.name != 'N/A (Info Error)' else patient.address[:10] }}">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">{{ patient.name if patient.name != 'N/A (Info Error)' else 'Info Error' }}</h6>
+                        {# Optional: Add last active/record date? #}
+                    </div>
+                    <small class="text-muted monospace"><i class="bi bi-person-vcard me-1"></i>{{ patient.address[:10]
+                        }}...{{ patient.address[-6:] }}</small>
+                </button>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card-body text-center py-5">
+                <i class="bi bi-person-slash display-5 text-muted mb-3"></i>
+                <p class="card-text text-muted">No patients have granted you access yet.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        {# Manual Patient Lookup Form #}
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center">
+                <i class="bi bi-search me-2"></i> Manual Patient Lookup
+            </div>
+            <div class="card-body p-4">
+                <form id="view-patient-form">
+                    <div class="mb-3">
+                        <label for="manual_patient_address" class="form-label">Patient's Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-at"></i></span>
+                            <input type="text" class="form-control" id="manual_patient_address"
+                                name="manual_patient_address" placeholder="0x..." required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-secondary w-100"><i class="bi bi-binoculars-fill me-1"></i>
+                        Fetch Records</button>
+                </form>
+                <div class="alert alert-secondary mt-3 small d-flex align-items-center mb-0" role="alert">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <div>Use this if the patient list above is pending implementation or missing an entry.</div>
+                </div>
+            </div>
+        </div>
+
+    </div> {# End Column 1 #}
+
+    {# Column 2: Records Display & Add Form #}
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header" id="records-list-header">
+                <i class="bi bi-files me-2"></i> Patient Records Area
+            </div>
+            <div class="card-body">
+                {# Area where records list will be loaded #}
+                <div id="patient-records-display-area" style="min-height: 150px;">
+                    <div class="text-center py-5">
+                        <i class="bi bi-person-bounding-box display-5 text-muted mb-3"></i>
+                        <p class="text-muted">Select a patient from the list or use manual lookup to view records.</p>
+                    </div>
+                </div>
+
+                {# Add Record Form for Doctor (Initially Hidden) #}
+                <div id="doctor-add-record-section" style="display: none;" class="mt-4 pt-4 border-top">
+                    <h5 class="mb-3"><i class="bi bi-file-earmark-plus-fill me-2"></i>Add New Record for <span
+                            id="add-record-patient-name" class="text-primary">Patient</span></h5>
+                    <form id="doctor-add-record-form" method="post" enctype="multipart/form-data">
+                        {# Action URL set by JS #}
+                        <div class="mb-3">
+                            <label for="doctor_record_type" class="form-label">Record Type</label>
+                            <input type="text" class="form-control form-control-sm" id="doctor_record_type"
+                                name="record_type" placeholder="e.g., Diagnosis, Consultation Note" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="doctor_record_file" class="form-label">Select File</label>
+                            <input class="form-control form-control-sm" type="file" id="doctor_record_file"
+                                name="record_file" required>
+                            <div class="form-text small mt-1">File will be pinned and its hash stored on-chain.</div>
+                        </div>
+                        <button type="submit" class="btn btn-success"><i class="bi bi-cloud-plus-fill me-1"></i> Add
+                            Record for Patient</button>
+                    </form>
+                </div>
+            </div> {# End card-body #}
+        </div> {# End card #}
+    </div> {# End Column 2 #}
+</div> {# End row #}
+
+
+{# Modal for viewing record data (Same as patient dashboard) #}
+<div class="modal fade" id="recordDataModal" tabindex="-1" aria-labelledby="recordDataModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recordDataModalLabel"><i class="bi bi-file-earmark-text me-2"></i>Record
+                    Data Viewer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-muted small mb-2"><i class="bi bi-cloud-download me-1"></i>Fetching data from IPFS
+                    Gateway...</p>
+                <div id="record-data-viewer"
+                    style="min-height: 50vh; max-height: 70vh; overflow-y: auto; background-color: #ffffff; padding: 1rem; border-radius: 0.5rem; border: 1px solid #dee2e6; display: flex; justify-content: center; align-items: center;">
+                    <div class="spinner-border text-primary" role="status"><span
+                            class="visually-hidden">Loading...</span></div>
+                </div>
+                <div class="alert alert-secondary small mt-3 mb-0 d-flex align-items-center" role="alert">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <div>Attempts to display text, images, and PDFs. Other types may not render. Decryption not
+                        implemented.</div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <small id="record-data-hash" class="text-muted me-auto monospace">Hash: N/A</small>
+                <a id="download-record-link" class="btn btn-sm btn-outline-secondary" href="#" download
+                    style="display: none;"><i class="bi bi-download me-1"></i>Download File</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{# Updated JavaScript for enhanced viewing and form handling #}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- Get Elements ---
+        const patientListContainer = document.querySelector('.list-group'); // Target container for delegation
+        const viewPatientForm = document.getElementById('view-patient-form');
+        const patientAddressInput = document.getElementById('manual_patient_address');
+        const recordsDisplayArea = document.getElementById('patient-records-display-area');
+        const recordsListHeader = document.getElementById('records-list-header');
+        const addRecordSection = document.getElementById('doctor-add-record-section');
+        const addRecordForm = document.getElementById('doctor-add-record-form');
+        const addRecordPatientNameSpan = document.getElementById('add-record-patient-name');
+        const modalElement = document.getElementById('recordDataModal');
+        const recordDataModal = modalElement ? new bootstrap.Modal(modalElement) : null;
+        const modalDataViewer = document.getElementById('record-data-viewer');
+        const modalHashDisplay = document.getElementById('record-data-hash');
+        const downloadLink = document.getElementById('download-record-link');
+        let currentObjectUrl = null;
+
+        // --- Function to Show Record Data in Modal (Enhanced Version) ---
+        function showRecordDataInModal(patientAddr, recordHash) {
+            // ... (Keep implementation from previous patient dashboard script) ...
+            if (!recordDataModal || !modalDataViewer || !modalHashDisplay || !downloadLink) { return; }
+            if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; }
+            modalDataViewer.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
+            modalHashDisplay.textContent = `Hash: ${recordHash.substring(0, 10)}...`;
+            downloadLink.style.display = 'none'; downloadLink.removeAttribute('href'); downloadLink.removeAttribute('download');
+            recordDataModal.show();
+            const gatewayBaseUrl = "{{ Config.IPFS_GATEWAY_URL | default('https://gateway.pinata.cloud/ipfs/', true) }}";
+            const fetchUrl = `${gatewayBaseUrl}${recordHash}`;
+            fetch(fetchUrl)
+                .then(response => { /* ... */ if (!response.ok) { throw new Error(`HTTP ${response.status}`); } const ct = response.headers.get("content-type"); return response.blob().then(b => ({ blob: b, contentType: ct })); })
+                .then(({ blob, contentType }) => {
+                    modalDataViewer.innerHTML = '';
+                    currentObjectUrl = URL.createObjectURL(blob);
+                    downloadLink.href = currentObjectUrl;
+                    const filename = recordHash.substring(recordHash.length - 12) + (contentType ? '.' + contentType.split('/')[1] : '');
+                    downloadLink.download = filename; downloadLink.style.display = 'inline-block';
+                    if (contentType && contentType.startsWith('image/')) { /* ... display img ... */ const img = document.createElement('img'); img.src = currentObjectUrl; img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;'; img.alt = `Record ${recordHash}`; img.onerror = () => { modalDataViewer.innerHTML = '<p class="text-danger">Error loading image.</p>'; }; modalDataViewer.appendChild(img); }
+                    else if (contentType && contentType === 'application/pdf') { /* ... display iframe ... */ const iframe = document.createElement('iframe'); iframe.src = currentObjectUrl; iframe.style.cssText = 'width:100%;height:65vh;border:none;'; iframe.title = `Record ${recordHash}`; modalDataViewer.appendChild(iframe); }
+                    else if (contentType && (contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('xml'))) { /* ... display pre ... */ blob.text().then(text => { const pre = document.createElement('pre'); pre.textContent = text; pre.style.cssText = 'white-space:pre-wrap;word-break:break-all;'; modalDataViewer.appendChild(pre); }).catch(err => { modalDataViewer.innerHTML = '<p class="text-danger">Error reading text.</p>'; }); }
+                    else { /* ... fallback ... */ modalDataViewer.innerHTML = `<p class="text-center text-muted">Cannot preview type (${contentType || 'Unknown'}). Use download.</p>`; }
+                })
+                .catch(error => { /* ... error handling ... */ modalDataViewer.innerHTML = `<p class="text-center text-danger"><strong>Error:</strong><br>${error.message}</p>`; downloadLink.style.display = 'none'; if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; } });
+        }
+
+        // --- Event Listener for Modal Close --- (Keep as before)
+        if (modalElement) { modalElement.addEventListener('hidden.bs.modal', function () { /* ... revoke URL, clear viewer ... */ if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; } if (modalDataViewer) modalDataViewer.innerHTML = ''; if (modalHashDisplay) modalHashDisplay.textContent = 'Hash: N/A'; if (downloadLink) downloadLink.style.display = 'none'; }); }
+
+        // --- Event Delegation for 'View Data' buttons --- (Keep as before)
+        if (recordsDisplayArea) { recordsDisplayArea.addEventListener('click', function (event) { if (event.target.classList.contains('view-record-data-btn')) { const pa = event.target.dataset.patient; const rh = event.target.dataset.hash; if (pa && rh) { showRecordDataInModal(pa, rh); } else { console.error("Missing data attributes on view button:", event.target.dataset); } } }); }
+
+        // --- Function to Fetch and Display Patient Records ---
+        function fetchAndDisplayRecords(patientAddress, patientName) {
+            if (!recordsDisplayArea || !recordsListHeader || !addRecordSection || !addRecordForm || !addRecordPatientNameSpan) { console.error("Missing required elements."); return; }
+            recordsListHeader.textContent = `Loading Records for ${patientName}...`;
+            recordsDisplayArea.innerHTML = '<div class="d-flex justify-content-center p-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+            addRecordSection.style.display = 'none';
+            fetch(`/api/doctor/get_patient_records/${patientAddress}`)
+                .then(response => { /* ... error handling ... */ if (!response.ok) { return response.json().then(err => { throw new Error(err.error || `HTTP ${response.status}`) }).catch(() => { throw new Error(`HTTP ${response.status}`) }); } return response.json(); })
+                .then(data => {
+                    recordsListHeader.textContent = `Medical Records for ${patientName || patientAddress}`;
+                    if (data.records && data.records.length > 0) { /* ... display records list ... */
+                        let recordsHtml = '<ul class="list-group list-group-flush">';
+                        data.records.forEach(record => { let sh = record.dataHash.substring(0, 10) + '...' + record.dataHash.substring(record.dataHash.length - 10); let su = record.uploadedBy.substring(0, 6) + '...' + record.uploadedBy.substring(record.uploadedBy.length - 4); recordsHtml += `<li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2"><div> <strong>Type:</strong> ${record.recordType || 'N/A'} <br> <small class="text-muted monospace" title="${record.dataHash}"><i class="bi bi-hash me-1"></i>${sh}</small> <br> <small class="text-muted"><i class="bi bi-clock me-1"></i>${record.timestamp_str || 'N/A'} by ${su}</small> </div> <button class="btn btn-sm btn-outline-info view-record-data-btn" data-patient="${patientAddress}" data-hash="${record.dataHash}"><i class="bi bi-eye-fill me-1"></i> View Data </button> </li>`; });
+                        recordsHtml += '</ul>'; recordsDisplayArea.innerHTML = recordsHtml;
+                    } else { recordsDisplayArea.innerHTML = '<div class="text-center py-5"><i class="bi bi-folder-x display-5 text-muted mb-3"></i><p class="text-muted">No records found for this patient.</p></div>'; }
+                    addRecordPatientNameSpan.textContent = patientName || patientAddress;
+                    addRecordForm.action = `/doctor/add_record/${patientAddress}`;
+                    addRecordForm.reset();
+                    addRecordSection.style.display = 'block';
+                })
+                .catch(error => { /* ... error handling ... */ console.error('Error fetching patient records:', error); recordsListHeader.textContent = `Records for ${patientName || patientAddress}`; recordsDisplayArea.innerHTML = `<div class="alert alert-danger m-3">Error loading records: ${error.message}</div>`; addRecordSection.style.display = 'none'; });
+        }
+
+        // --- Event Listener for Patient List Buttons (Delegated) ---
+        if (patientListContainer) {
+            patientListContainer.addEventListener('click', function (event) {
+                const button = event.target.closest('.view-patient-records-btn'); // Find the button if clicked inside
+                if (button) {
+                    const patientAddress = button.dataset.patientAddress;
+                    const patientName = button.dataset.patientName;
+                    if (patientAddress) {
+                        fetchAndDisplayRecords(patientAddress, patientName);
+                        // Optional: Add active state to the clicked button
+                        document.querySelectorAll('.view-patient-records-btn').forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+                    }
+                }
+            });
+        }
+
+        // --- Event Listener for Manual Lookup Form ---
+        if (viewPatientForm) {
+            viewPatientForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                const patientAddress = patientAddressInput.value.trim();
+                if (!patientAddress || !patientAddress.startsWith('0x') || patientAddress.length !== 42) {
+                    alert("Please enter a valid Ethereum address starting with 0x."); return;
+                }
+                // We don't know the name here, so pass address as name placeholder
+                fetchAndDisplayRecords(patientAddress, patientAddress);
+                // Optional: Clear active state from list buttons
+                document.querySelectorAll('.view-patient-records-btn').forEach(btn => btn.classList.remove('active'));
+            });
+        }
+
+    });
+</script>
+{% endblock %}

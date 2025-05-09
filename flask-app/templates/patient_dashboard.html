@@ -1,0 +1,305 @@
+{# flask-app/templates/patient_dashboard.html #}
+
+{% extends "layout.html" %}
+{% block title %}Patient Dashboard - HealthChain{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">Patient Dashboard</h2>
+<p class="lead">Welcome back, {{ session.user_name }}!</p>
+<p class="user-address mb-4">Your Address: {{ session.user_address }}</p>
+
+{% if error_msg %}
+<div class="alert alert-danger">{{ error_msg }}</div> {# Changed from warning to danger for consistency #}
+{% endif %}
+
+<div class="row">
+    {# Column 1: Records and Upload #}
+    <div class="col-md-7">
+        {# Upload New Record Card #}
+        <div class="card mb-4">
+            <div class="card-header">Upload New Medical Record</div>
+            <div class="card-body">
+                <form action="{{ url_for('upload_record') }}" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="record_type" class="form-label">Record Type</label>
+                        <input type="text" class="form-control" id="record_type" name="record_type"
+                            placeholder="e.g., Prescription, Lab Result" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="record_file" class="form-label">Record File</label>
+                        <input class="form-control" type="file" id="record_file" name="record_file" required>
+                        <div class="form-text small">File will be pinned (e.g., via Pinata) and its hash stored
+                            on-chain.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload & Add Record</button>
+                </form>
+            </div>
+        </div>
+
+        {# Your Records List Card #}
+        <div class="card mb-4">
+            <div class="card-header">Your Medical Records</div>
+            {% if records %}
+            <ul class="list-group list-group-flush">
+                {% for record in records %}
+                <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
+                    <div>
+                        <strong>Type:</strong> {{ record.recordType }} <br>
+                        <small class="text-muted monospace" title="{{ record.dataHash }}">Hash/CID: {{
+                            record.dataHash[:10] }}...{{ record.dataHash[-10:] }}</small> <br>
+                        {# Display readable timestamp if available #}
+                        <small class="text-muted">Uploaded: {{ record.timestamp | timestamp_to_datetime }} by {{
+                            record.uploadedBy[:6] }}...{{ record.uploadedBy[-4:] }}</small>
+                    </div>
+                    {# Button to trigger modal #}
+                    <button class="btn btn-sm btn-info mt-2 mt-md-0 view-record-btn"
+                        data-patient="{{ session.user_address }}" {# Patient's own address #}
+                        data-hash="{{ record.dataHash }}">
+                        View Data
+                    </button>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="card-body">
+                <p class="card-text text-muted">You haven't uploaded any records yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>{# End Column 1 #}
+
+    {# Column 2: Access Management #}
+    <div class="col-md-5">
+        {# Grant Access Card #}
+        <div class="card mb-4">
+            <div class="card-header">Grant Access to a Doctor</div>
+            <div class="card-body">
+                <form action="{{ url_for('grant_access') }}" method="post">
+                    <div class="mb-3">
+                        <label for="doctor_address" class="form-label">Doctor's Ethereum Address</label>
+                        <input type="text" class="form-control" id="doctor_address" name="doctor_address"
+                            placeholder="0x..." required>
+                    </div>
+                    <button type="submit" class="btn btn-success">Grant Access</button>
+                </form>
+            </div>
+        </div>
+
+        {# Doctors With Access Card #}
+        <div class="card mb-4">
+            <div class="card-header">Doctors With Access</div>
+            {% if doctors_with_access %}
+            <ul class="list-group list-group-flush">
+                {% for doctor in doctors_with_access %}
+                <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
+                    <div>
+                        <strong>Dr. {{ doctor.name if doctor.name != 'N/A (Info Error)' else 'Info Error' }}</strong>
+                        <br>
+                        <small class="text-muted monospace" title="{{ doctor.address }}">{{ doctor.address[:10] }}...{{
+                            doctor.address[-6:] }}</small>
+                    </div>
+                    <form action="{{ url_for('revoke_access') }}" method="post" class="mt-2 mt-md-0 ms-md-2">
+                        <input type="hidden" name="doctor_address" value="{{ doctor.address }}">
+                        <button type="submit" class="btn btn-sm btn-danger">Revoke</button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="card-body">
+                <p class="card-text text-muted">You haven't granted access to any doctors, or the feature requires
+                    backend implementation.</p>
+            </div>
+            {% endif %}
+        </div>
+        {# Optional: Add the info note about placeholder status if needed #}
+        {% if not doctors_with_access and connection_ok %} {# Check connection_ok if passed from app.py #}
+        <div class="alert alert-info mt-3 small">
+            <strong>Note:</strong> Listing doctors with access requires features not yet fully implemented.
+        </div>
+        {% endif %}
+
+    </div> {# End Column 2 #}
+
+</div> {# End Row #}
+
+
+{# Modal for viewing record data (Updated Structure) #}
+<div class="modal fade" id="recordDataModal" tabindex="-1" aria-labelledby="recordDataModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl"> {# Increased size #}
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recordDataModalLabel">Record Data Viewer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><small>Fetching data from IPFS Gateway...</small></p>
+                {# Container for displaying content #}
+                <div id="record-data-viewer"
+                    style="min-height: 50vh; max-height: 70vh; overflow-y: auto; background-color: #f8f9fa; padding: 5px; border-radius: 5px; border: 1px solid #dee2e6; display: flex; justify-content: center; align-items: center;">
+                    {## Content will be inserted here by JavaScript ##}
+                    <p class="text-center text-muted">Loading...</p>
+                </div>
+                <div class="alert alert-secondary small mt-3">
+                    <strong>Note:</strong> Attempts to display text, images (JPEG, PNG, GIF, WebP), and PDFs. Other file
+                    types may not render. Decryption is not implemented. Rendering depends on gateway headers and
+                    browser support.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <small id="record-data-hash" class="text-muted me-auto">Hash: N/A</small>
+                {# Add download button #}
+                <a id="download-record-link" class="btn btn-sm btn-outline-secondary" href="#" download
+                    style="display: none;">Download File</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{# Updated JavaScript for enhanced viewing #}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const viewRecordButtons = document.querySelectorAll('.view-record-btn'); // Buttons for patient's own records
+        // --- Modal Elements ---
+        const modalElement = document.getElementById('recordDataModal');
+        const recordDataModal = modalElement ? new bootstrap.Modal(modalElement) : null;
+        const modalDataViewer = document.getElementById('record-data-viewer');
+        const modalHashDisplay = document.getElementById('record-data-hash');
+        const downloadLink = document.getElementById('download-record-link');
+
+        // Variable to store current object URL to revoke later
+        let currentObjectUrl = null;
+
+        // --- Function to Show Record Data in Modal (Enhanced Version) ---
+        function showRecordDataInModal(patientAddr, recordHash) {
+            if (!recordDataModal || !modalDataViewer || !modalHashDisplay || !downloadLink) {
+                alert("Error: Modal elements not found.");
+                console.error("Modal elements missing");
+                return;
+            }
+
+            // Revoke previous object URL if one exists
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = null;
+                console.log("Revoked previous object URL");
+            }
+
+            // Reset viewer and download link, show loading state
+            modalDataViewer.innerHTML = '<p class="text-center text-muted">Loading...</p>';
+            modalHashDisplay.textContent = `Hash: ${recordHash.substring(0, 10)}...`;
+            downloadLink.style.display = 'none';
+            downloadLink.removeAttribute('href');
+            downloadLink.removeAttribute('download');
+            recordDataModal.show();
+
+            // Construct the gateway URL from Flask config (passed via template or default)
+            const gatewayBaseUrl = "{{ Config.IPFS_GATEWAY_URL | default('https://gateway.pinata.cloud/ipfs/', true) }}";
+            const fetchUrl = `${gatewayBaseUrl}${recordHash}`;
+            console.log(`Fetching from Gateway: ${fetchUrl}`);
+
+            // Fetch data as Blob
+            fetch(fetchUrl)
+                .then(response => {
+                    if (!response.ok) { throw new Error(`HTTP Error: ${response.status} ${response.statusText}`); }
+                    const contentType = response.headers.get("content-type");
+                    console.log("Received Content-Type:", contentType);
+                    return response.blob().then(blob => ({ blob, contentType }));
+                })
+                .then(({ blob, contentType }) => {
+                    modalDataViewer.innerHTML = ''; // Clear loading
+
+                    // Create object URL
+                    currentObjectUrl = URL.createObjectURL(blob);
+                    console.log("Created Object URL:", currentObjectUrl);
+
+                    // Set download link
+                    downloadLink.href = currentObjectUrl;
+                    const filename = recordHash.substring(recordHash.length - 12) + (contentType ? '.' + contentType.split('/')[1] : '');
+                    downloadLink.download = filename;
+                    downloadLink.style.display = 'inline-block';
+
+                    // --- Display Logic based on Content-Type ---
+                    if (contentType && contentType.startsWith('image/')) {
+                        const img = document.createElement('img');
+                        img.src = currentObjectUrl;
+                        img.style.maxWidth = '100%'; img.style.maxHeight = '100%'; img.style.objectFit = 'contain';
+                        img.alt = `Image record (CID: ${recordHash})`;
+                        img.onerror = () => { modalDataViewer.innerHTML = '<p class="text-danger">Error loading image.</p>'; };
+                        modalDataViewer.appendChild(img);
+                    } else if (contentType && contentType === 'application/pdf') {
+                        const iframe = document.createElement('iframe');
+                        iframe.src = currentObjectUrl;
+                        iframe.style.width = '100%'; iframe.style.height = '65vh'; iframe.style.border = 'none';
+                        iframe.title = `PDF record (CID: ${recordHash})`;
+                        modalDataViewer.appendChild(iframe);
+                    } else if (contentType && (contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('xml'))) {
+                        blob.text().then(text => {
+                            const pre = document.createElement('pre');
+                            pre.textContent = text;
+                            pre.style.whiteSpace = 'pre-wrap'; pre.style.wordBreak = 'break-all';
+                            modalDataViewer.appendChild(pre);
+                        }).catch(err => {
+                            console.error("Error reading blob as text:", err);
+                            modalDataViewer.innerHTML = '<p class="text-danger">Error reading text content.</p>';
+                        });
+                    } else {
+                        console.log("Cannot preview content type:", contentType);
+                        modalDataViewer.innerHTML = `<p class="text-center text-muted">Cannot preview this file type (${contentType || 'Unknown'}). Use the download button.</p>`;
+                    }
+                    // --- End Display Logic ---
+                })
+                .catch(error => {
+                    console.error('Error fetching or processing record data:', error);
+                    modalDataViewer.innerHTML = `<p class="text-center text-danger"><strong>Error Loading Data:</strong><br>${error.message}</p>`;
+                    downloadLink.style.display = 'none';
+                    if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; }
+                });
+        }
+
+        // --- Event Listener for Modal Close ---
+        if (modalElement) {
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                if (currentObjectUrl) {
+                    URL.revokeObjectURL(currentObjectUrl);
+                    currentObjectUrl = null;
+                    console.log("Revoked object URL on modal close");
+                }
+                if (modalDataViewer) modalDataViewer.innerHTML = ''; // Clear viewer
+                if (modalHashDisplay) modalHashDisplay.textContent = 'Hash: N/A';
+                if (downloadLink) downloadLink.style.display = 'none';
+            });
+        }
+
+        // --- Attach listener to View Record buttons ---
+        viewRecordButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                const patientAddr = this.dataset.patient; // Should be the logged-in patient's address
+                const recordHash = this.dataset.hash;
+                if (patientAddr && recordHash) {
+                    showRecordDataInModal(patientAddr, recordHash);
+                } else {
+                    console.error("Missing patient address or record hash on button:", this.dataset);
+                    alert("Error: Could not get record details from button.");
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
+```
+
+<!-- **Changes Made:**
+
+1.  **Modal HTML:** The modal structure (`#recordDataModal`) was updated to match the doctor's version, including the `#record-data-viewer` div and the download link (`#download-record-link`).
+2.  **JavaScript:**
+    * The entire `<script>` block from the updated `doctor_dashboard.html` was copied over.
+    * The core `showRecordDataInModal` function with Blob handling, Content-Type checking, conditional rendering (image, PDF, text), Object URL creation/revocation, and download link handling is now included.
+    * The event listener now correctly targets the buttons with the class `.view-record-btn` (which were already present on the patient dashboard) and calls the updated `showRecordDataInModal` function.
+    * The event listener for modal close (`hidden.bs.modal`) is included to revoke the Object URL.
+
+Now, the patient dashboard should have the same enhanced viewing capabilities in its modal as the doctor's dashboa -->

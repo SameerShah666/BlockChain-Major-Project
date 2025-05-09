@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block title %}Welcome - HealthChain{% endblock %}
+
+{% block content %}
+<div class="text-center py-5 px-3">
+    <i class="bi bi-shield-lock-fill display-1 text-primary mb-3"></i>
+    <h1 class="display-4 fw-bold">HealthChain</h1>
+    <p class="lead text-muted col-lg-6 mx-auto mb-4">
+        Securely manage and share your medical records using the power of blockchain technology. Empowering patients and
+        enabling seamless access for authorized doctors.
+    </p>
+    {% if not session.user_address %}
+    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-2 mb-2" type="button"><i
+            class="bi bi-person-plus-fill me-1"></i> Register Now</a>
+    <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-lg mb-2" type="button"><i
+            class="bi bi-box-arrow-in-right me-1"></i> Login</a>
+    {% else %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-success btn-lg" type="button"><i
+            class="bi bi-speedometer2 me-1"></i> Go to Dashboard</a>
+    {% endif %}
+</div>
+
+<hr class="my-5">
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card h-100 text-center shadow-sm">
+            <div class="card-body d-flex flex-column justify-content-center align-items-center p-4 p-lg-5">
+                <i class="bi bi-person-badge display-4 text-success mb-3"></i>
+                <h2 class="h4">For Patients</h2>
+                <p class="text-muted mb-4">Take control of your health data. Securely store record references, manage
+                    permissions, and decide who sees your information.</p>
+                {% if session.user_address and session.user_role == 0 %}
+                <a href="{{ url_for('dashboard') }}" class="btn btn-success" type="button"><i
+                        class="bi bi-layout-text-sidebar-reverse me-1"></i> Your Dashboard</a>
+                {% elif not session.user_address %}
+                <a href="{{ url_for('register') }}?role=0" class="btn btn-outline-success" type="button"><i
+                        class="bi bi-person-plus me-1"></i> Register as Patient</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100 text-center shadow-sm">
+            <div class="card-body d-flex flex-column justify-content-center align-items-center p-4 p-lg-5">
+                <i class="bi bi-clipboard2-pulse display-4 text-info mb-3"></i>
+                <h2 class="h4">For Doctors</h2>
+                <p class="text-muted mb-4">Access patient records efficiently and securely *only* with their explicit
+                    permission. Streamline workflows with blockchain-verified data access.</p>
+                {% if session.user_address and session.user_role == 1 %}
+                <a href="{{ url_for('dashboard') }}" class="btn btn-info text-white" type="button"><i
+                        class="bi bi-layout-text-sidebar-reverse me-1"></i> Your Dashboard</a>
+                {% elif not session.user_address %}
+                <a href="{{ url_for('register') }}?role=1" class="btn btn-outline-info" type="button"><i
+                        class="bi bi-person-plus me-1"></i> Register as Doctor</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
