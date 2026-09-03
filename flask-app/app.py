@@ -1,6 +1,3 @@
-# flask-app/app.py
-# Updated: 2025-05-01 ~11:37 PM IST
-
 import os
 import datetime # For timestamp filter
 import traceback # For detailed error logging
@@ -101,9 +98,7 @@ def timestamp_to_datetime_filter(s):
         return str(s) # Return original value if conversion fails
 
 
-# --- User Session Management (INSECURE DEMO - DO NOT USE IN PRODUCTION) ---
-# WARNING: Storing private keys in session is EXTREMELY INSECURE.
-# This is for DEMONSTRATION PURPOSES ONLY to avoid MetaMask.
+# --- User Session Management ---
 def get_current_user_key():
     """Gets the logged-in user's private key from session (INSECURE)."""
     return session.get('user_private_key')
@@ -153,8 +148,8 @@ def register():
     if not w3 or not w3.is_connected():
         flash("Blockchain connection unavailable.", "danger")
         return render_template('register.html')
-    registrar_key = Config.SERVER_ACCOUNT_PRIVATE_KEY # Using DEPLOYER_KEY loaded into this config var
-    registrar_address = w3.eth.account.from_key(registrar_key).address # Get address from key
+    registrar_key = Config.SERVER_ACCOUNT_PRIVATE_KEY 
+    registrar_address = w3.eth.account.from_key(registrar_key).address
     if not registrar_key:
          flash("Server configuration error: Registrar key not set. Cannot register new users.", "danger")
          return render_template('register.html')
@@ -207,8 +202,8 @@ def register():
             session['user_name'] = name
             # Construct the warning message showing the NEW USER'S private key
             key_warning = f'Your Address: {user_address}<br><strong>IMPORTANT - SAVE THIS PRIVATE KEY SECURELY (needed for login):</strong><br><span class="monospace">{user_private_key}</span>'
-            flash(key_warning, 'warning') # Use 'warning' category for visibility
-            transfer_ether(registrar_address, registrar_key, user_address, 0.3) # Optional: Transfer some ether to the new user
+            flash(key_warning, 'warning') 
+            transfer_ether(registrar_address, registrar_key, user_address, 0.3) 
             return redirect(url_for('dashboard'))
         else:
             # Registration transaction failed
